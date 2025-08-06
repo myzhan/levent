@@ -8,7 +8,7 @@ function util.read_message(conn, parser, left)
     repeat
         local parsed, s, err
         if left then
-            s = left
+            s, left = left, nil
         else
             s, err = conn:recv(4096)
             if not s then
@@ -16,20 +16,11 @@ function util.read_message(conn, parser, left)
             end
         end
 
-        if #s > 0 and not msg then
-            -- first time we have data
-            msg = {}
+        if #s == 0 then
+            break
         end
 
-        if #s == 0 then
-            -- socket closed by peer
-            if msg then
-                -- partial data
-                break
-            else
-                return nil, ""
-            end
-        end
+        msg = msg or {}
 
         parsed, err = parser:execute(s, nil, msg)
         if err then
