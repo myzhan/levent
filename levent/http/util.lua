@@ -3,19 +3,30 @@ local c = require "levent.http.c"
 local util = {}
 
 function util.read_message(conn, parser, left)
-    local msg = {}
+    local msg = nil
     local raw = {}
-    while not msg.complete do
+    repeat
         local parsed, s, err
         if left then
             s = left
         else
             s, err = conn:recv(4096)
-            if err then
+            if not s then
                 return nil, err
             end
-            if (not s) or (#s == 0) then
-                -- socket closed by peer
+        end
+
+        if #s > 0 and not msg then
+            -- first time we have data
+            msg = {}
+        end
+
+        if #s == 0 then
+            -- socket closed by peer
+            if msg then
+                -- partial data
+                break
+            else
                 return nil, ""
             end
         end
@@ -25,18 +36,13 @@ function util.read_message(conn, parser, left)
             return nil, c.http_errno_name(err)
         end
 
-        -- socket closed by peer
-        if #s == 0 then
-            break
-        end
-
         if parsed < #s then
             table.insert(raw, s:sub(1, parsed))
             left = s:sub(parsed+1)
         else
             table.insert(raw, s)
         end
-    end
+    until msg.complete
 
     -- return raw msg at last
     return msg, left, table.concat(raw)
@@ -47,14 +53,14 @@ function util.canonical_header_key(key)
 end
 
 local function escape(s)
-    return s:gsub("[^a-zA-Z0-9-_.~]", function(c) 
-        return string.format("%%%02x",string.byte(c)) 
+    return s:gsub("[^a-zA-Z0-9-_.~]", function(char)
+        return string.format("%%%02x",string.byte(char))
     end)
 end
 
 local function unescape(s)
-    return s:gsub("%%%x%x", function(ss) 
-        return string.char(tonumber("0x" .. ss:sub(2))) 
+    return s:gsub("%%%x%x", function(ss)
+        return string.char(tonumber("0x" .. ss:sub(2)))
     end)
 end
 
@@ -88,4 +94,3 @@ end
 util.escape = escape
 util.unescape = unescape
 return util
-
