@@ -11,8 +11,12 @@ function util.read_message(conn, parser, left)
             s = left
         else
             s, err = conn:recv(4096)
-            if not s then
+            if err then
                 return nil, err
+            end
+            if (not s) or (#s == 0) then
+                -- socket closed by peer
+                return nil, ""
             end
         end
 
